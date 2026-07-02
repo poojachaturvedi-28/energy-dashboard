@@ -3,239 +3,468 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Energy Consumption Dashboard</title>
+  <title>G_103101 – Energy Dashboard</title>
   <link rel="stylesheet" href="/static/style.css" />
-  <!-- Chart.js CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 </head>
 <body>
+
+  <!-- ── Header ──────────────────────────────────────────────────────────── -->
   <header>
     <div class="header-inner">
       <span class="logo">⚡ Energy Dashboard</span>
-      <span class="subtitle">Cloud-Based Consumption Monitoring</span>
+      <span class="badge">Meter: G_103101 &nbsp;|&nbsp; 3P4W Mode</span>
+      <span class="subtitle">{{ date_min }} – {{ date_max }} &nbsp;·&nbsp; {{ "{:,}".format(total_records) }} records</span>
     </div>
   </header>
 
   <main>
-    <!-- KPI Cards -->
-    <section class="kpi-grid">
+
+    <!-- ── KPI Row ──────────────────────────────────────────────────────── -->
+    <section class="kpi-grid" id="kpi-grid">
       <div class="kpi-card">
-        <div class="kpi-label">Total Consumption</div>
-        <div class="kpi-value" id="kpi-total-kwh">—</div>
+        <div class="kpi-label">Avg System Power</div>
+        <div class="kpi-value" id="k-kw">—</div>
+        <div class="kpi-unit">kW</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Max Apparent Power</div>
+        <div class="kpi-value" id="k-kva">—</div>
+        <div class="kpi-unit">kVA</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Avg Power Factor</div>
+        <div class="kpi-value" id="k-pf">—</div>
+        <div class="kpi-unit">Sys.PF</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Avg Frequency</div>
+        <div class="kpi-value" id="k-hz">—</div>
+        <div class="kpi-unit">Hz</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Imported Energy</div>
+        <div class="kpi-value" id="k-imp">—</div>
         <div class="kpi-unit">kWh</div>
       </div>
       <div class="kpi-card">
-        <div class="kpi-label">Total Cost</div>
-        <div class="kpi-value" id="kpi-total-cost">—</div>
-        <div class="kpi-unit">USD</div>
-      </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Avg per Record</div>
-        <div class="kpi-value" id="kpi-avg-kwh">—</div>
+        <div class="kpi-label">Exported Energy</div>
+        <div class="kpi-value" id="k-exp">—</div>
         <div class="kpi-unit">kWh</div>
       </div>
-      <div class="kpi-card">
-        <div class="kpi-label">Top Energy Source</div>
-        <div class="kpi-value kpi-source" id="kpi-top-source">—</div>
+    </section>
+
+    <!-- ── Phase Voltage KPIs ───────────────────────────────────────────── -->
+    <section class="kpi-grid kpi-voltage">
+      <div class="kpi-card accent-r">
+        <div class="kpi-label">Avg VR-N</div>
+        <div class="kpi-value" id="k-vr">—</div>
+        <div class="kpi-unit">V</div>
+      </div>
+      <div class="kpi-card accent-y">
+        <div class="kpi-label">Avg VY-N</div>
+        <div class="kpi-value" id="k-vy">—</div>
+        <div class="kpi-unit">V</div>
+      </div>
+      <div class="kpi-card accent-b">
+        <div class="kpi-label">Avg VB-N</div>
+        <div class="kpi-value" id="k-vb">—</div>
+        <div class="kpi-unit">V</div>
       </div>
     </section>
 
-    <!-- Filter Bar -->
-    <section class="filter-bar">
-      <label for="building-select">Filter by Building:</label>
-      <select id="building-select">
-        <option value="">All Buildings</option>
-        {% for b in buildings %}
-        <option value="{{ b }}">{{ b }}</option>
-        {% endfor %}
-      </select>
-    </section>
-
-    <!-- Charts Row 1 -->
+    <!-- ── Row 1: Power + PF ────────────────────────────────────────────── -->
     <section class="charts-row">
       <div class="chart-card wide">
-        <h2>Daily Consumption Over Time</h2>
-        <canvas id="lineChart"></canvas>
+        <h2>System Active Power (kW) over Time</h2>
+        <canvas id="chartPower"></canvas>
       </div>
     </section>
 
-    <!-- Charts Row 2 -->
     <section class="charts-row">
       <div class="chart-card">
-        <h2>Consumption by Building</h2>
-        <canvas id="barChart"></canvas>
+        <h2>Power Factor over Time</h2>
+        <canvas id="chartPF"></canvas>
       </div>
       <div class="chart-card">
-        <h2>Consumption by Source</h2>
-        <canvas id="pieChart"></canvas>
+        <h2>Frequency (Hz) over Time</h2>
+        <canvas id="chartFreq"></canvas>
       </div>
     </section>
 
-    <!-- Charts Row 3 -->
+    <!-- ── Row 2: Voltage + Current ─────────────────────────────────────── -->
     <section class="charts-row">
       <div class="chart-card wide">
-        <h2>Daily Cost Over Time</h2>
-        <canvas id="costChart"></canvas>
+        <h2>Phase-to-Neutral Voltages (V) over Time</h2>
+        <canvas id="chartVoltage"></canvas>
       </div>
     </section>
+
+    <section class="charts-row">
+      <div class="chart-card wide">
+        <h2>Phase Currents (A) over Time</h2>
+        <canvas id="chartCurrent"></canvas>
+      </div>
+    </section>
+
+    <!-- ── Row 3: KVA / KVAR + Energy ───────────────────────────────────── -->
+    <section class="charts-row">
+      <div class="chart-card">
+        <h2>Apparent &amp; Reactive Power over Time</h2>
+        <canvas id="chartKVA"></canvas>
+      </div>
+      <div class="chart-card">
+        <h2>Cumulative Energy (kWh)</h2>
+        <canvas id="chartEnergy"></canvas>
+      </div>
+    </section>
+
+    <!-- ── Row 4: Phase KW bars + THD bars ──────────────────────────────── -->
+    <section class="charts-row">
+      <div class="chart-card">
+        <h2>Average KW per Phase</h2>
+        <canvas id="chartPhaseKW"></canvas>
+      </div>
+      <div class="chart-card">
+        <h2>Average Voltage THD per Phase (%)</h2>
+        <canvas id="chartTHD"></canvas>
+      </div>
+    </section>
+
+    <!-- ── Row 5: Harmonics ─────────────────────────────────────────────── -->
+    <section class="charts-row">
+      <div class="chart-card wide">
+        <h2>Voltage Harmonics Profile (3rd – 15th order)</h2>
+        <canvas id="chartHarmonics"></canvas>
+      </div>
+    </section>
+
+    <!-- ── Min-Max Table ────────────────────────────────────────────────── -->
+    <section class="table-section">
+      <h2>Min / Max Parameter Values</h2>
+      <div class="table-wrap">
+        <table id="minmax-table">
+          <thead>
+            <tr>
+              <th>Parameter</th>
+              <th>Min Value</th>
+              <th>Min Date</th>
+              <th>Min Time</th>
+              <th>Max Value</th>
+              <th>Max Date</th>
+              <th>Max Time</th>
+            </tr>
+          </thead>
+          <tbody id="minmax-body">
+            <tr><td colspan="7" class="loading">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ── Sag / Swell Events ───────────────────────────────────────────── -->
+    <section class="table-section">
+      <h2>Voltage Sag / Swell Events</h2>
+      <div class="table-wrap">
+        <table id="sagswell-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Start Date</th>
+              <th>Start Time</th>
+              <th>Duration (ms)</th>
+              <th>Type</th>
+              <th>Value (V)</th>
+            </tr>
+          </thead>
+          <tbody id="sagswell-body">
+            <tr><td colspan="6" class="loading">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
   </main>
 
   <footer>
-    <p>Energy Monitoring Dashboard &copy; 2024 &mdash; Powered by Flask &amp; Chart.js</p>
+    <p>Dataset G-091023 · Meter G_103101 · 3P4W Mode &nbsp;|&nbsp; Energy Dashboard &copy; 2024</p>
   </footer>
 
+  <!-- ── Scripts ─────────────────────────────────────────────────────────── -->
   <script>
-    // ── Helpers ────────────────────────────────────────────────────────────────
-    const PALETTE = ["#3b82f6","#10b981","#f59e0b","#ef4444","#8b5cf6","#06b6d4"];
+    // ── Palette ──────────────────────────────────────────────────────────────
+    const C = {
+      blue:   "#3b82f6",  blueA: "rgba(59,130,246,0.15)",
+      red:    "#ef4444",  redA:  "rgba(239,68,68,0.15)",
+      yellow: "#f59e0b",  yellA: "rgba(245,158,11,0.15)",
+      green:  "#10b981",  grnA:  "rgba(16,185,129,0.15)",
+      purple: "#8b5cf6",  purA:  "rgba(139,92,246,0.15)",
+      cyan:   "#06b6d4",  cyanA: "rgba(6,182,212,0.15)",
+      orange: "#f97316",
+    };
 
-    function fmt(num) {
-      return Number(num).toLocaleString(undefined, { maximumFractionDigits: 2 });
+    const lineOpts = (yLabel) => ({
+      responsive: true,
+      animation: false,
+      plugins: { legend: { position: "top", labels: { color: "#94a3b8", boxWidth: 12 } } },
+      scales: {
+        x: { ticks: { color: "#64748b", maxTicksLimit: 10 }, grid: { color: "#1e293b" } },
+        y: { ticks: { color: "#64748b" }, grid: { color: "#1e293b" }, title: { display: !!yLabel, text: yLabel, color: "#64748b" } }
+      }
+    });
+
+    function mkLine(id, datasets, yLabel) {
+      return new Chart(document.getElementById(id).getContext("2d"), {
+        type: "line",
+        data: { datasets },
+        options: { ...lineOpts(yLabel), parsing: { xAxisKey: "time", yAxisKey: Object.keys(datasets[0].data[0] || { v: 0 })[1] } }
+      });
     }
 
-    let lineChart, costChart;
-
-    // ── KPI ───────────────────────────────────────────────────────────────────
-    async function loadSummary() {
-      const res = await fetch("/api/summary");
-      const d = await res.json();
-      document.getElementById("kpi-total-kwh").textContent  = fmt(d.total_kwh);
-      document.getElementById("kpi-total-cost").textContent = "$" + fmt(d.total_cost_usd);
-      document.getElementById("kpi-avg-kwh").textContent    = fmt(d.avg_kwh_per_record);
-      document.getElementById("kpi-top-source").textContent = d.top_source;
+    // ── KPI ──────────────────────────────────────────────────────────────────
+    async function loadKPI() {
+      const d = await fetch("/api/summary").then(r => r.json());
+      document.getElementById("k-kw").textContent  = d.avg_sys_kw;
+      document.getElementById("k-kva").textContent = d.max_sys_kva;
+      document.getElementById("k-pf").textContent  = d.avg_sys_pf;
+      document.getElementById("k-hz").textContent  = d.avg_freq_hz;
+      document.getElementById("k-imp").textContent = d.imp_eb_kwh;
+      document.getElementById("k-exp").textContent = d.exp_eb_kwh;
+      document.getElementById("k-vr").textContent  = d.avg_vrn;
+      document.getElementById("k-vy").textContent  = d.avg_vyn;
+      document.getElementById("k-vb").textContent  = d.avg_vbn;
     }
 
-    // ── Bar chart: by building ────────────────────────────────────────────────
-    async function loadBarChart() {
-      const res = await fetch("/api/consumption-by-building");
-      const d = await res.json();
-      const ctx = document.getElementById("barChart").getContext("2d");
-      new Chart(ctx, {
+    // ── Active Power ─────────────────────────────────────────────────────────
+    async function loadPower() {
+      const d = await fetch("/api/power-over-time").then(r => r.json());
+      new Chart(document.getElementById("chartPower").getContext("2d"), {
+        type: "line",
+        data: {
+          labels: d.map(r => r.time.replace("T", " ").slice(0, 16)),
+          datasets: [{
+            label: "Sys KW", data: d.map(r => r.kw),
+            borderColor: C.blue, backgroundColor: C.blueA,
+            fill: true, tension: 0.3, pointRadius: 0, borderWidth: 1.5
+          }]
+        },
+        options: lineOpts("kW")
+      });
+    }
+
+    // ── Power Factor ─────────────────────────────────────────────────────────
+    async function loadPF() {
+      const d = await fetch("/api/pf-over-time").then(r => r.json());
+      new Chart(document.getElementById("chartPF").getContext("2d"), {
+        type: "line",
+        data: {
+          labels: d.map(r => r.time.replace("T"," ").slice(0,16)),
+          datasets: [{
+            label: "Sys PF", data: d.map(r => r.pf),
+            borderColor: C.green, backgroundColor: C.grnA,
+            fill: true, tension: 0.3, pointRadius: 0, borderWidth: 1.5
+          }]
+        },
+        options: lineOpts("Power Factor")
+      });
+    }
+
+    // ── Frequency ────────────────────────────────────────────────────────────
+    async function loadFreq() {
+      const d = await fetch("/api/freq-over-time").then(r => r.json());
+      new Chart(document.getElementById("chartFreq").getContext("2d"), {
+        type: "line",
+        data: {
+          labels: d.map(r => r.time.replace("T"," ").slice(0,16)),
+          datasets: [{
+            label: "Hz", data: d.map(r => r.hz),
+            borderColor: C.yellow, backgroundColor: C.yellA,
+            fill: true, tension: 0.3, pointRadius: 0, borderWidth: 1.5
+          }]
+        },
+        options: {
+          ...lineOpts("Hz"),
+          scales: {
+            ...lineOpts("Hz").scales,
+            y: { ...lineOpts("Hz").scales.y, min: 49, max: 51 }
+          }
+        }
+      });
+    }
+
+    // ── Voltage ──────────────────────────────────────────────────────────────
+    async function loadVoltage() {
+      const d = await fetch("/api/voltage-over-time").then(r => r.json());
+      const labels = d.map(r => r.time.replace("T"," ").slice(0,16));
+      new Chart(document.getElementById("chartVoltage").getContext("2d"), {
+        type: "line",
+        data: {
+          labels,
+          datasets: [
+            { label: "VR-N", data: d.map(r => r.Vrn), borderColor: C.red,    backgroundColor: C.redA,  fill: false, tension: 0.3, pointRadius: 0, borderWidth: 1.5 },
+            { label: "VY-N", data: d.map(r => r.Vyn), borderColor: C.yellow, backgroundColor: C.yellA, fill: false, tension: 0.3, pointRadius: 0, borderWidth: 1.5 },
+            { label: "VB-N", data: d.map(r => r.Vbn), borderColor: C.blue,   backgroundColor: C.blueA, fill: false, tension: 0.3, pointRadius: 0, borderWidth: 1.5 },
+          ]
+        },
+        options: lineOpts("Volts (V)")
+      });
+    }
+
+    // ── Current ──────────────────────────────────────────────────────────────
+    async function loadCurrent() {
+      const d = await fetch("/api/current-over-time").then(r => r.json());
+      const labels = d.map(r => r.time.replace("T"," ").slice(0,16));
+      new Chart(document.getElementById("chartCurrent").getContext("2d"), {
+        type: "line",
+        data: {
+          labels,
+          datasets: [
+            { label: "IR", data: d.map(r => r.Ir), borderColor: C.red,    fill: false, tension: 0.3, pointRadius: 0, borderWidth: 1.5 },
+            { label: "IY", data: d.map(r => r.Iy), borderColor: C.yellow, fill: false, tension: 0.3, pointRadius: 0, borderWidth: 1.5 },
+            { label: "IB", data: d.map(r => r.Ib), borderColor: C.blue,   fill: false, tension: 0.3, pointRadius: 0, borderWidth: 1.5 },
+          ]
+        },
+        options: lineOpts("Current (A)")
+      });
+    }
+
+    // ── KVA / KVAR ───────────────────────────────────────────────────────────
+    async function loadKVA() {
+      const d = await fetch("/api/kva-kvar-over-time").then(r => r.json());
+      const labels = d.map(r => r.time.replace("T"," ").slice(0,16));
+      new Chart(document.getElementById("chartKVA").getContext("2d"), {
+        type: "line",
+        data: {
+          labels,
+          datasets: [
+            { label: "kVA", data: d.map(r => r.kva),  borderColor: C.purple, backgroundColor: C.purA, fill: true,  tension: 0.3, pointRadius: 0, borderWidth: 1.5 },
+            { label: "kVAR",data: d.map(r => r.kvar), borderColor: C.orange, fill: false, tension: 0.3, pointRadius: 0, borderWidth: 1.5 },
+          ]
+        },
+        options: lineOpts("kVA / kVAR")
+      });
+    }
+
+    // ── Cumulative Energy ─────────────────────────────────────────────────────
+    async function loadEnergy() {
+      const d = await fetch("/api/energy-cumulative").then(r => r.json());
+      const labels = d.map(r => r.time.replace("T"," ").slice(0,16));
+      new Chart(document.getElementById("chartEnergy").getContext("2d"), {
+        type: "line",
+        data: {
+          labels,
+          datasets: [
+            { label: "Import kWh", data: d.map(r => r.imp_kwh), borderColor: C.blue,  backgroundColor: C.blueA, fill: true,  tension: 0.2, pointRadius: 0, borderWidth: 1.5 },
+            { label: "Export kWh", data: d.map(r => r.exp_kwh), borderColor: C.green, backgroundColor: C.grnA,  fill: true,  tension: 0.2, pointRadius: 0, borderWidth: 1.5 },
+          ]
+        },
+        options: lineOpts("kWh")
+      });
+    }
+
+    // ── Phase KW bar ──────────────────────────────────────────────────────────
+    async function loadPhaseKW() {
+      const d = await fetch("/api/phase-kw").then(r => r.json());
+      new Chart(document.getElementById("chartPhaseKW").getContext("2d"), {
         type: "bar",
         data: {
-          labels: d.map(r => r.building),
-          datasets: [{
-            label: "kWh",
-            data: d.map(r => r.consumption_kwh),
-            backgroundColor: PALETTE,
-            borderRadius: 6,
-          }]
+          labels: d.map(r => r.phase),
+          datasets: [{ label: "Avg kW", data: d.map(r => r.kw),
+            backgroundColor: [C.red, C.yellow, C.blue], borderRadius: 6 }]
         },
-        options: {
-          responsive: true,
-          plugins: { legend: { display: false } },
-          scales: { y: { beginAtZero: true } }
-        }
+        options: { responsive: true, plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: true, ticks: { color: "#64748b" }, grid: { color: "#1e293b" } },
+                    x: { ticks: { color: "#64748b" }, grid: { color: "#1e293b" } } } }
       });
     }
 
-    // ── Pie chart: by source ──────────────────────────────────────────────────
-    async function loadPieChart() {
-      const res = await fetch("/api/consumption-by-source");
-      const d = await res.json();
-      const ctx = document.getElementById("pieChart").getContext("2d");
-      new Chart(ctx, {
-        type: "doughnut",
+    // ── THD bar ───────────────────────────────────────────────────────────────
+    async function loadTHD() {
+      const d = await fetch("/api/thd").then(r => r.json());
+      new Chart(document.getElementById("chartTHD").getContext("2d"), {
+        type: "bar",
         data: {
-          labels: d.map(r => r.source),
-          datasets: [{
-            data: d.map(r => r.consumption_kwh),
-            backgroundColor: PALETTE,
-            hoverOffset: 8,
-          }]
+          labels: d.map(r => r.phase),
+          datasets: [{ label: "Avg V-THD %", data: d.map(r => r.thd),
+            backgroundColor: [C.red, C.yellow, C.blue], borderRadius: 6 }]
         },
-        options: {
-          responsive: true,
-          plugins: { legend: { position: "bottom" } }
-        }
+        options: { responsive: true, plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: true, ticks: { color: "#64748b" }, grid: { color: "#1e293b" } },
+                    x: { ticks: { color: "#64748b" }, grid: { color: "#1e293b" } } } }
       });
     }
 
-    // ── Line chart: consumption over time ─────────────────────────────────────
-    async function loadLineChart(building = "") {
-      const url = "/api/consumption-over-time" + (building ? `?building=${encodeURIComponent(building)}` : "");
-      const res = await fetch(url);
-      const d = await res.json();
-
-      const labels = d.map(r => r.date);
-      const values = d.map(r => r.consumption_kwh);
-
-      if (lineChart) lineChart.destroy();
-      const ctx = document.getElementById("lineChart").getContext("2d");
-      lineChart = new Chart(ctx, {
-        type: "line",
+    // ── Harmonics ─────────────────────────────────────────────────────────────
+    async function loadHarmonics() {
+      const d = await fetch("/api/harmonics").then(r => r.json());
+      new Chart(document.getElementById("chartHarmonics").getContext("2d"), {
+        type: "bar",
         data: {
-          labels,
-          datasets: [{
-            label: "kWh",
-            data: values,
-            borderColor: "#3b82f6",
-            backgroundColor: "rgba(59,130,246,0.1)",
-            fill: true,
-            tension: 0.3,
-            pointRadius: 0,
-          }]
+          labels: d.orders,
+          datasets: [
+            { label: "VR", data: d.VR, backgroundColor: C.red    + "cc", borderRadius: 4 },
+            { label: "VY", data: d.VY, backgroundColor: C.yellow + "cc", borderRadius: 4 },
+            { label: "VB", data: d.VB, backgroundColor: C.blue   + "cc", borderRadius: 4 },
+          ]
         },
-        options: {
-          responsive: true,
-          plugins: { legend: { display: false } },
-          scales: {
-            x: { ticks: { maxTicksLimit: 12 } },
-            y: { beginAtZero: true }
-          }
-        }
+        options: { responsive: true,
+          plugins: { legend: { position: "top", labels: { color: "#94a3b8", boxWidth: 12 } } },
+          scales: { y: { beginAtZero: true, ticks: { color: "#64748b" }, grid: { color: "#1e293b" } },
+                    x: { ticks: { color: "#64748b" }, grid: { color: "#1e293b" } } } }
       });
     }
 
-    // ── Cost chart: cost over time ────────────────────────────────────────────
-    async function loadCostChart(building = "") {
-      const url = "/api/cost-over-time" + (building ? `?building=${encodeURIComponent(building)}` : "");
-      const res = await fetch(url);
-      const d = await res.json();
-
-      const labels = d.map(r => r.date);
-      const values = d.map(r => r.cost_usd);
-
-      if (costChart) costChart.destroy();
-      const ctx = document.getElementById("costChart").getContext("2d");
-      costChart = new Chart(ctx, {
-        type: "line",
-        data: {
-          labels,
-          datasets: [{
-            label: "USD",
-            data: values,
-            borderColor: "#10b981",
-            backgroundColor: "rgba(16,185,129,0.1)",
-            fill: true,
-            tension: 0.3,
-            pointRadius: 0,
-          }]
-        },
-        options: {
-          responsive: true,
-          plugins: { legend: { display: false } },
-          scales: {
-            x: { ticks: { maxTicksLimit: 12 } },
-            y: { beginAtZero: true }
-          }
-        }
-      });
+    // ── Min-Max Table ─────────────────────────────────────────────────────────
+    async function loadMinMax() {
+      const d = await fetch("/api/minmax").then(r => r.json());
+      const tbody = document.getElementById("minmax-body");
+      tbody.innerHTML = d.map(r => `
+        <tr>
+          <td><strong>${r.parameter}</strong></td>
+          <td class="num">${r.min_val}</td>
+          <td>${r.min_date}</td>
+          <td>${r.min_time}</td>
+          <td class="num hi">${r.max_val}</td>
+          <td>${r.max_date}</td>
+          <td>${r.max_time}</td>
+        </tr>`).join("");
     }
 
-    // ── Filter ────────────────────────────────────────────────────────────────
-    document.getElementById("building-select").addEventListener("change", function () {
-      loadLineChart(this.value);
-      loadCostChart(this.value);
-    });
+    // ── Sag/Swell Table ───────────────────────────────────────────────────────
+    async function loadSagSwell() {
+      const d = await fetch("/api/sagswell").then(r => r.json());
+      const tbody = document.getElementById("sagswell-body");
+      if (!d.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="loading">No events recorded</td></tr>';
+        return;
+      }
+      tbody.innerHTML = d.map(r => `
+        <tr>
+          <td>${r.no}</td>
+          <td>${r.start_date}</td>
+          <td>${r.start_time}</td>
+          <td class="num">${r.duration_ms}</td>
+          <td><span class="badge-type ${r.type.toLowerCase()}">${r.type}</span></td>
+          <td class="num">${r.value} V</td>
+        </tr>`).join("");
+    }
 
     // ── Boot ──────────────────────────────────────────────────────────────────
     (async () => {
       await Promise.all([
-        loadSummary(),
-        loadBarChart(),
-        loadPieChart(),
-        loadLineChart(),
-        loadCostChart(),
+        loadKPI(),
+        loadPower(),
+        loadPF(),
+        loadFreq(),
+        loadVoltage(),
+        loadCurrent(),
+        loadKVA(),
+        loadEnergy(),
+        loadPhaseKW(),
+        loadTHD(),
+        loadHarmonics(),
+        loadMinMax(),
+        loadSagSwell(),
       ]);
     })();
   </script>
