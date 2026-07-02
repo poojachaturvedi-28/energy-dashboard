@@ -1,0 +1,23 @@
+version: "3.9"
+
+services:
+  energy-dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: energy-dashboard:latest
+    container_name: energy-dashboard
+    ports:
+      - "5000:5000"
+    volumes:
+      # Mount local data dir so you can refresh the CSV without rebuilding
+      - ./data:/app/data:ro
+    environment:
+      - FLASK_ENV=production
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/api/summary"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s

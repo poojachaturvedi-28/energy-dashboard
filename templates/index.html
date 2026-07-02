@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Energy Consumption Dashboard</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header>
+    <div class="header-inner">
+      <span class="logo">⚡ Energy Dashboard</span>
+      <span class="subtitle">Cloud-Based Consumption Monitoring</span>
+    </div>
+  </header>
+
+  <main>
+    <!-- KPI Cards -->
+    <section class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-label">Total Consumption</div>
+        <div class="kpi-value" id="kpi-total-kwh">—</div>
+        <div class="kpi-unit">kWh</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Total Cost</div>
+        <div class="kpi-value" id="kpi-total-cost">—</div>
+        <div class="kpi-unit">USD</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Avg per Record</div>
+        <div class="kpi-value" id="kpi-avg-kwh">—</div>
+        <div class="kpi-unit">kWh</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Top Energy Source</div>
+        <div class="kpi-value kpi-source" id="kpi-top-source">—</div>
+      </div>
+    </section>
+
+    <!-- Filter Bar -->
+    <section class="filter-bar">
+      <label for="building-select">Filter by Building:</label>
+      <select id="building-select">
+        <option value="">All Buildings</option>
+        {% for b in buildings %}
+        <option value="{{ b }}">{{ b }}</option>
+        {% endfor %}
+      </select>
+    </section>
+
+    <!-- Charts Row 1 -->
+    <section class="charts-row">
+      <div class="chart-card wide">
+        <h2>Daily Consumption Over Time</h2>
+        <canvas id="lineChart"></canvas>
+      </div>
+    </section>
+
+    <!-- Charts Row 2 -->
+    <section class="charts-row">
+      <div class="chart-card">
+        <h2>Consumption by Building</h2>
+        <canvas id="barChart"></canvas>
+      </div>
+      <div class="chart-card">
+        <h2>Consumption by Source</h2>
+        <canvas id="pieChart"></canvas>
+      </div>
+    </section>
+
+    <!-- Charts Row 3 -->
+    <section class="charts-row">
+      <div class="chart-card wide">
+        <h2>Daily Cost Over Time</h2>
+        <canvas id="costChart"></canvas>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>Energy Monitoring Dashboard &copy; 2024 &mdash; Powered by Flask &amp; Chart.js</p>
+  </footer>
+
+  <script>
+    // ── Helpers ────────────────────────────────────────────────────────────────
+    const PALETTE = ["#3b82f6","#10b981","#f59e0b","#ef4444","#8b5cf6","#06b6d4"];
+
+    function fmt(num) {
+      return Number(num).toLocaleString(undefined, { maximumFractionDigits: 2 });
+    }
+
+    let lineChart, costChart;
+
+    // ── KPI ───────────────────────────────────────────────────────────────────
+    async function loadSummary() {
+      const res = await fetch("/api/summary");
+      const d = await res.json();
+      document.getElementById("kpi-total-kwh").textContent  = fmt(d.total_kwh);
+      document.getElementById("kpi-total-cost").textContent = "$" + fmt(d.total_cost_usd);
+      document.getElementById("kpi-avg-kwh").textContent    = fmt(d.avg_kwh_per_record);
+      document.getElementById("kpi-top-source").textContent = d.top_source;
+    }
+
+    // ── Bar chart: by building ────────────────────────────────────────────────
+    async function loadBarChart() {
+      const res = await fetch("/api/consumption-by-building");
+      const d = await res.json();
+      const ctx = document.getElementById("barChart").getContext("2d");
+      new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels: d.map(r => r.building),
+          datasets: [{
+            label: "kWh",
+            data: d.map(r => r.consumption_kwh),
+            backgroundColor: PALETTE,
+            borderRadius: 6,
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: true } }
+        }
+      });
+    }
+
+    // ── Pie chart: by source ──────────────────────────────────────────────────
+    async function loadPieChart() {
+      const res = await fetch("/api/consumption-by-source");
+      const d = await res.json();
+      const ctx = document.getElementById("pieChart").getContext("2d");
+      new Chart(ctx, {
+        type: "doughnut",
+        data: {
+          labels: d.map(r => r.source),
+          datasets: [{
+            data: d.map(r => r.consumption_kwh),
+            backgroundColor: PALETTE,
+            hoverOffset: 8,
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { position: "bottom" } }
+        }
+      });
+    }
+
+    // ── Line chart: consumption over time ─────────────────────────────────────
+    async function loadLineChart(building = "") {
+      const url = "/api/consumption-over-time" + (building ? `?building=${encodeURIComponent(building)}` : "");
+      const res = await fetch(url);
+      const d = await res.json();
+
+      const labels = d.map(r => r.date);
+      const values = d.map(r => r.consumption_kwh);
+
+      if (lineChart) lineChart.destroy();
+      const ctx = document.getElementById("lineChart").getContext("2d");
+      lineChart = new Chart(ctx, {
+        type: "line",
+        data: {
+          labels,
+          datasets: [{
+            label: "kWh",
+            data: values,
+            borderColor: "#3b82f6",
+            backgroundColor: "rgba(59,130,246,0.1)",
+            fill: true,
+            tension: 0.3,
+            pointRadius: 0,
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { maxTicksLimit: 12 } },
+            y: { beginAtZero: true }
+          }
+        }
+      });
+    }
+
+    // ── Cost chart: cost over time ────────────────────────────────────────────
+    async function loadCostChart(building = "") {
+      const url = "/api/cost-over-time" + (building ? `?building=${encodeURIComponent(building)}` : "");
+      const res = await fetch(url);
+      const d = await res.json();
+
+      const labels = d.map(r => r.date);
+      const values = d.map(r => r.cost_usd);
+
+      if (costChart) costChart.destroy();
+      const ctx = document.getElementById("costChart").getContext("2d");
+      costChart = new Chart(ctx, {
+        type: "line",
+        data: {
+          labels,
+          datasets: [{
+            label: "USD",
+            data: values,
+            borderColor: "#10b981",
+            backgroundColor: "rgba(16,185,129,0.1)",
+            fill: true,
+            tension: 0.3,
+            pointRadius: 0,
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { maxTicksLimit: 12 } },
+            y: { beginAtZero: true }
+          }
+        }
+      });
+    }
+
+    // ── Filter ────────────────────────────────────────────────────────────────
+    document.getElementById("building-select").addEventListener("change", function () {
+      loadLineChart(this.value);
+      loadCostChart(this.value);
+    });
+
+    // ── Boot ──────────────────────────────────────────────────────────────────
+    (async () => {
+      await Promise.all([
+        loadSummary(),
+        loadBarChart(),
+        loadPieChart(),
+        loadLineChart(),
+        loadCostChart(),
+      ]);
+    })();
+  </script>
+</body>
+</html>
