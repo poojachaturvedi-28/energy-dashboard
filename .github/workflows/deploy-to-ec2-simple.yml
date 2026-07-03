@@ -1,0 +1,82 @@
+name: Deploy to AWS EC2 (Direct - No ECR)
+
+# Use this workflow if you want to skip AWS ECR and deploy directly from GitHub
+# Simpler but slower build process on EC2
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+  workflow_dispatch:
+
+env:
+  CONTAINER_NAME: energy-app
+
+jobs:
+  deploy-to-ec2:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to EC2
+        env:
+          PRIVATE_KEY: ${{ secrets.EC2_PRIVATE_KEY }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H $EC2_HOST >> ~/.ssh/known_hosts
+          
+          # Copy code to EC2
+          scp -i ~/.ssh/deploy_key -r . $EC2_USER@$EC2_HOST:~/energy-dashboard
+          
+          # Deploy on EC2
+          ssh -i ~/.ssh/deploy_key $EC2_USER@$EC2_HOST << 'EOF'
+          cd ~/energy-dashboard
+          
+          # Stop old container
+          docker stop ${{ env.CONTAINER_NAME }} || true
+          docker rm ${{ env.CONTAINER_NAME }} || true
+          
+          # Rebuild and run
+          docker build -t energy-dashboard:latest .
+          docker run -d \
+            --name ${{ env.CONTAINER_NAME }} \
+            --restart unless-stopped \
+            -p 80:5000 \
+            energy-dashboard:latest
+          
+          # Clean up old images
+          docker image prune -f
+          
+          echo "Deployment complete!"
+          EOF
+
+      - name: Verify deployment
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          PRIVATE_KEY: ${{ secrets.EC2_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          
+          # Wait for container to be ready
+          sleep 15
+          
+          # Check if application is running
+          ssh -i ~/.ssh/deploy_key $EC2_USER@$EC2_HOST << 'EOF'
+          if curl -f http://localhost:5000 > /dev/null 2>&1; then
+            echo "✓ Application is running and responding"
+          else
+            echo "✗ Application failed to respond"
+            docker logs energy-app
+            exit 1
+          fi
+          EOF
