@@ -94,7 +94,7 @@ jobs:
           docker run -d \
             --name $CONTAINER_NAME \
             --restart unless-stopped \
-            -p 80:5000 \
+            -p 8000:5000 \
             $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
           
           # Clean up old images

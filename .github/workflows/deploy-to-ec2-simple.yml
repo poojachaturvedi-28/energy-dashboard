@@ -48,7 +48,7 @@ jobs:
           docker run -d \
             --name ${{ env.CONTAINER_NAME }} \
             --restart unless-stopped \
-            -p 80:5000 \
+            -p 8000:5000 \
             energy-dashboard:latest
           
           # Clean up old images
